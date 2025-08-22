@@ -1,0 +1,97 @@
+name: Optimized Test Workflow
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+jobs:
+  checks:
+    name: Run CI/CD Checks
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Checkout
+      - uses: actions/checkout@v4
+
+      # 2. Setup Node.js + cache
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: "npm"
+
+      # 3. Cache Biome
+      - uses: actions/cache@v3
+        with:
+          path: |
+            node_modules/.biome
+            .biome_cache
+          key: ${{ runner.os }}-biome-${{ hashFiles('**/*.ts','**/*.tsx','**/*.js','**/*.jsx') }}
+          restore-keys: |
+            ${{ runner.os }}-biome-
+
+      # 4. Cache Prisma Client
+      - uses: actions/cache@v3
+        with:
+          path: node_modules/.prisma
+          key: ${{ runner.os }}-prisma-${{ hashFiles('prisma/schema.prisma') }}
+          restore-keys: |
+            ${{ runner.os }}-prisma-
+
+      # 5. Install dependencies
+      - run: npm ci
+
+      # 6. Detect modified backend files
+      - name: Detect backend changes
+        id: modified
+        run: |
+          changed=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -E 'src/|prisma/' || true)
+          echo "modified=$changed" >> $GITHUB_OUTPUT
+
+      # 7. Biome checks
+      - name: Biome checks
+        if: steps.modified.outputs.modified != ''
+        run: |
+          npx biome format --check ${{ steps.modified.outputs.modified }} || true
+          npx biome lint --check ${{ steps.modified.outputs.modified }} || true
+          npx biome check ${{ steps.modified.outputs.modified }} || true
+
+      # 8. Start Docker Compose test environment
+      - name: Start test DB
+        if: steps.modified.outputs.modified != ''
+        run: docker-compose -f docker-compose.test.yml up -d
+
+      # 9. Load test environment variables
+      - name: Load .env.test
+        if: steps.modified.outputs.modified != ''
+        run: |
+          export $(grep -v '^#' .env.test | xargs)
+          echo "DATABASE_URL=postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@localhost:$POSTGRES_PORT/$POSTGRES_DB?schema=public" >> $GITHUB_ENV
+
+      # 10. Wait for Postgres & Redis
+      - name: Wait for Postgres
+        if: steps.modified.outputs.modified != ''
+        run: |
+          until docker exec edit_pdf_postgres_test pg_isready -U $POSTGRES_USER; do sleep 2; done
+
+      - name: Wait for Redis
+        if: steps.modified.outputs.modified != ''
+        run: |
+          until docker exec edit_pdf_redis_test redis-cli ping | grep PONG; do sleep 2; done
+
+      # 11. Run Prisma migrations
+      - name: Prisma migrate
+        if: steps.modified.outputs.modified != ''
+        run: npx prisma migrate deploy
+
+      # 12. Run tests
+      - name: Run tests
+        if: steps.modified.outputs.modified != ''
+        run: npm test -- --runInBand
+
+      # 13. Stop test environment
+      - name: Stop test DB
+        if: steps.modified.outputs.modified != ''
+        run: docker-compose -f docker-compose.test.yml down -v

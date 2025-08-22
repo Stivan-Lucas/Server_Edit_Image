@@ -1,14 +1,11 @@
 // src/modules/logger.ts
 import fs from "node:fs";
 import path from "node:path";
-import pino, {
-	type Logger,
-	type LoggerOptions,
-	type TransportTargetOptions,
-} from "pino";
+import pino, { type Logger, type LoggerOptions } from "pino";
 import type { FastifyRequest, FastifyReply } from "fastify";
 import { env, isDev, isProd, isTest } from "../env/environment.ts";
 
+// --- Garantir diretório de logs ---
 const logDir = path.resolve(env.LOG_DIR);
 if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
 
@@ -40,36 +37,59 @@ const redactPaths: string[] = env.LOG_REDACT_PATHS
 			"*.password",
 		];
 
-// --- Transportes tipados ---
+// --- Transportes ---
 let transport: LoggerOptions["transport"] | undefined;
 
 if (isTest) {
-	// Dummy logger para testes
+	// Logger silencioso para testes
 	transport = undefined;
 } else if (isDev) {
-	// Console bonito
+	// Console bonito + arquivo de dev
 	transport = {
-		target: "pino-pretty",
-		options: {
-			colorize: env.LOG_PRETTY_COLORIZE,
-			translateTime: env.LOG_PRETTY_TRANSLATE_TIME,
-			ignore: env.LOG_PRETTY_IGNORE,
-			singleLine: env.LOG_PRETTY_SINGLE_LINE,
-		},
-		level: env.LOG_LEVEL,
-	} as TransportTargetOptions;
+		targets: [
+			{
+				target: "pino-pretty",
+				options: {
+					colorize: env.LOG_PRETTY_COLORIZE !== "false",
+					translateTime:
+						env.LOG_PRETTY_TRANSLATE_TIME || "SYS:yyyy-mm-dd HH:MM:ss",
+					ignore: env.LOG_PRETTY_IGNORE || "pid,hostname",
+					singleLine: env.LOG_PRETTY_SINGLE_LINE !== "false",
+				},
+				level: env.LOG_LEVEL,
+			},
+			{
+				target: "pino/file",
+				options: {
+					destination: path.join(logDir, `app.${env.NODE_ENV}.log`),
+					mkdir: true,
+					append: true,
+				},
+				level: env.LOG_LEVEL,
+			},
+		],
+	};
 } else if (isProd) {
-	// Arquivos rotacionados e comprimidos
+	// Produção → arquivo de log simples
 	transport = {
 		targets: [
 			{
 				target: "pino/file",
 				options: {
+					destination: path.join(logDir, `app.${env.NODE_ENV}.log`),
+					mkdir: true,
+					append: true,
+				},
+				level: env.LOG_LEVEL,
+			},
+			// opcional: segundo arquivo para rotação manual ou backup
+			{
+				target: "pino/file",
+				options: {
 					dirname: logDir,
 					filename: `app-%DATE%-${env.NODE_ENV}.log`,
-					datePattern: "YYYY-MM-DD",
-					maxFiles: env.LOG_FILE_MAX_DAYS,
-					zippedArchive: env.LOG_FILE_ZIPPED,
+					mkdir: true,
+					append: true,
 				},
 				level: env.LOG_LEVEL,
 			},

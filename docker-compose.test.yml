@@ -1,0 +1,25 @@
+version: "3.9"
+
+services:
+  postgres:
+    env_file:
+      - .env.test
+    container_name: edit_pdf_postgres_test
+    ports:
+      - "${POSTGRES_PORT:-7459}:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+
+  redis:
+    env_file:
+      - .env.test
+    container_name: edit_pdf_redis_test
+    ports:
+      - "${REDIS_PORT:-2547}:6379"
+
+volumes:
+  postgres_test_data:
+
+networks:
+  edit_pdf_network:
+    driver: bridge

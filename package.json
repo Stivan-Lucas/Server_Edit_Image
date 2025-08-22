@@ -14,10 +14,16 @@
     "type": "git",
     "url": "git+https://github.com/Stivan-Lucas/Server_Edit_Image.git"
   },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged"
+    }
+  },
   "lint-staged": {
     "*.{ts,tsx,js,jsx}": [
       "npx biome format --write",
-      "npx biome lint --write"
+      "npx biome lint --write",
+      "git add"
     ]
   },
   "scripts": {
@@ -32,6 +38,9 @@
     "lint:check": "biome lint --check",
     "check": "biome check",
     "check:write": "biome check --write",
+    "test:db:start": "docker-compose -f docker-compose.test.yml up -d",
+    "test:db:stop": "docker-compose -f docker-compose.test.yml down -v",
+    "test": "npm run test:db:start && jest --runInBand && npm run test:db:stop",
     "prepare": "husky"
   },
   "dependencies": {
