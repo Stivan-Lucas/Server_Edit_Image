@@ -1,0 +1,15 @@
+# Modules
+node_modules
+
+# Distribution
+dist
+
+# Environment
+.env
+
+# Coverage
+coverage
+
+# Logs
+logs
+html

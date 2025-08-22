@@ -1,0 +1,39 @@
+{
+	"$schema": "https://json.schemastore.org/tsconfig",
+	"extends": [
+		"@tsconfig/node24/tsconfig.json",
+		"@tsconfig/node-ts/tsconfig.json"
+	],
+	"display": "Node with TypeScript (TS >=5.8 ONLY)",
+	"docs": [
+		"https://devblogs.microsoft.com/typescript/announcing-typescript-5-7/#path-rewriting-for-relative-paths",
+		"https://devblogs.microsoft.com/typescript/announcing-typescript-5-8-beta/#the---erasablesyntaxonly-option"
+	],
+	"_version": "23.6.0",
+	"include": ["src/**/*"],
+	"exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"],
+	"compilerOptions": {
+		"removeComments": true,
+		"rewriteRelativeImportExtensions": true,
+		"erasableSyntaxOnly": true,
+		"verbatimModuleSyntax": true,
+
+		"lib": [
+			"es2024",
+			"ESNext.Array",
+			"ESNext.Collection",
+			"ESNext.Iterator",
+			"ESNext.Promise"
+		],
+		"module": "nodenext",
+		"target": "es2024",
+
+		"strict": true,
+		"esModuleInterop": true,
+		"skipLibCheck": true,
+		"moduleResolution": "node16",
+
+		"rootDir": "./src",
+		"outDir": "./dist"
+	}
+}
