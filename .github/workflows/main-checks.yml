@@ -1,0 +1,73 @@
+name: Main Checks
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  checks:
+    name: Run Biome + TypeScript Checks
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        tool: [format, lint, check]
+
+    steps:
+      # --- 1. Checkout repository ---
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # --- 2. Setup Node.js with npm cache ---
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: "npm"
+
+      # --- 3. Restore Biome cache ---
+      - name: Cache Biome
+        uses: actions/cache@v3
+        with:
+          path: |
+            node_modules/.biome
+            .biome_cache
+          key: ${{ runner.os }}-biome-${{ hashFiles('**/*.ts','**/*.tsx','**/*.js','**/*.jsx') }}
+          restore-keys: |
+            ${{ runner.os }}-biome-
+
+      # --- 4. Install dependencies ---
+      - name: Install dependencies
+        run: npm ci
+
+      # --- 5. Detect modified files ---
+      - name: Get modified files
+        id: files
+        run: |
+          modified_files=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -E '\.ts$|\.tsx$|\.js$|\.jsx$' || true)
+          echo "modified=$modified_files" >> $GITHUB_OUTPUT
+
+      # --- 6. Biome checks (parallel matrix) ---
+      - name: Biome ${{ matrix.tool }} check
+        if: steps.files.outputs.modified != ''
+        run: |
+          case ${{ matrix.tool }} in
+            format)
+              npx biome format --check ${{ steps.files.outputs.modified }} ;;
+            lint)
+              npx biome lint --check ${{ steps.files.outputs.modified }} ;;
+            check)
+              npx biome check ${{ steps.files.outputs.modified }} ;;
+          esac
+
+      # --- 7. TypeScript type check ---
+      - name: TypeScript type check
+        run: npx tsc --noEmit
+
+      # --- 8. Run tests (optional) ---
+      - name: Run tests
+        run: npm test
+        continue-on-error: true
